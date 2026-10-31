@@ -1,0 +1,386 @@
+/*
+ * Redirecciones 404: estilos del panel.
+ *
+ * La base es la interfaz nativa de WordPress (.wrap, WP_List_Table, .button,
+ * .notice). Aquí solo hay toques de marca: el acento azul para cifras y
+ * etiquetas, el logotipo monoespaciado y las URL en monoespaciada.
+ * Todo va dentro de .r404 para no afectar a otras pantallas.
+ */
+
+.r404 {
+	--r404-accent: #2c4a7a;
+	--r404-accent-soft: #e9eef6;
+	--r404-text: #1c1b19;
+	--r404-muted: #6c6a63;
+	--r404-line: #e5e3de;
+	--r404-surface: #f7f6f3;
+	--r404-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+}
+
+/* Cabecera ------------------------------------------------------------- */
+
+.r404-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem 1.5rem;
+	margin: 0.5rem 0 1rem;
+}
+
+.r404 .r404-title {
+	margin: 0;
+	padding: 0;
+	line-height: 1.2;
+}
+
+.r404-wordmark {
+	font-family: var(--r404-mono);
+	font-size: 23px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	color: var(--r404-text);
+}
+
+/* Cursor de bloque del logotipo, como el de ~/rubén▌ en el portfolio. */
+.r404-wordmark::after {
+	content: "";
+	display: inline-block;
+	width: 0.55em;
+	height: 1.05em;
+	margin-left: 0.12em;
+	vertical-align: -0.17em;
+	background: var(--r404-accent);
+}
+
+.r404-summary {
+	margin: 0;
+	color: var(--r404-muted);
+	font-size: 13px;
+}
+
+.r404-pill {
+	display: inline-block;
+	padding: 0.25rem 0.75rem;
+	border-radius: 999px;
+	background: var(--r404-accent-soft);
+	color: var(--r404-accent);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.r404-num {
+	color: var(--r404-text);
+	font-family: var(--r404-mono);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Pestañas: contador al estilo de las burbujas de WordPress. */
+.r404-count {
+	display: inline-block;
+	min-width: 1.5em;
+	margin-left: 0.25rem;
+	padding: 0 0.4em;
+	border-radius: 999px;
+	background: var(--r404-accent);
+	color: #fff;
+	font-family: var(--r404-mono);
+	font-size: 11px;
+	line-height: 1.7;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+	vertical-align: 0.1em;
+}
+
+.r404-intro {
+	max-width: 60rem;
+	margin: 1rem 0 0;
+	color: var(--r404-muted);
+}
+
+/* Listados ---------------------------------------------------------------- */
+
+.r404 .r404-url {
+	padding: 0;
+	background: none;
+	color: var(--r404-text);
+	font-family: var(--r404-mono);
+	font-size: 13px;
+	overflow-wrap: anywhere;
+}
+
+.r404-hits {
+	color: var(--r404-accent);
+	font-family: var(--r404-mono);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.r404-date {
+	font-variant-numeric: tabular-nums;
+}
+
+.r404-muted {
+	color: var(--r404-muted);
+}
+
+.r404-arrow {
+	color: var(--r404-muted);
+}
+
+.r404-referrer {
+	display: inline-block;
+	max-width: 100%;
+	font-family: var(--r404-mono);
+	font-size: 12px;
+	text-decoration: none;
+	overflow-wrap: anywhere;
+}
+
+.r404-referrer__path {
+	color: var(--r404-muted);
+}
+
+.r404 .wp-list-table .column-hits,
+.r404 .wp-list-table .column-type {
+	width: 6.5em;
+}
+
+.r404 .wp-list-table .column-last_seen,
+.r404 .wp-list-table .column-last_hit,
+.r404 .wp-list-table .column-created {
+	width: 11em;
+}
+
+.r404 .wp-list-table .column-referrer {
+	width: 17%;
+}
+
+.r404 .wp-list-table .column-redirect {
+	width: 36%;
+}
+
+/* Formulario «Redirigir 301» de cada fila. */
+.r404-inline {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.r404 .r404-inline__input {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.r404 .r404-inline__button {
+	flex: none;
+	white-space: nowrap;
+}
+
+.r404-suggestion {
+	margin: 0.25rem 0 0;
+	color: var(--r404-muted);
+	font-size: 12px;
+}
+
+.r404-suggestion__title {
+	color: var(--r404-text);
+}
+
+.r404-row-form {
+	display: none;
+}
+
+.r404 .button.r404-danger {
+	border-color: #b32d2e;
+	color: #b32d2e;
+}
+
+.r404 .button.r404-danger:hover,
+.r404 .button.r404-danger:focus {
+	border-color: #8a2424;
+	color: #8a2424;
+}
+
+/* Etiquetas de tipo y de comodín. */
+.r404-badge {
+	display: inline-block;
+	padding: 0 0.5em;
+	border: 1px solid var(--r404-accent);
+	border-radius: 4px;
+	background: var(--r404-accent);
+	color: #fff;
+	font-family: var(--r404-mono);
+	font-size: 12px;
+	line-height: 1.6;
+	font-variant-numeric: tabular-nums;
+}
+
+.r404-badge--temp {
+	background: #fff;
+	color: var(--r404-accent);
+}
+
+.r404-badge--muted {
+	border-color: var(--r404-line);
+	background: var(--r404-surface);
+	color: var(--r404-muted);
+	font-family: inherit;
+}
+
+/* Campos con URL en monoespaciada. */
+.r404 input.code,
+.r404 .r404-mono {
+	font-family: var(--r404-mono);
+	font-size: 13px;
+}
+
+/* Tarjetas ------------------------------------------------------------- */
+
+.r404-card {
+	margin: 1rem 0;
+	padding: 1rem 1.5rem 1.25rem;
+	border: 1px solid #c3c4c7;
+	border-radius: 8px;
+	background: #fff;
+}
+
+.r404 .r404-card__title {
+	margin: 0 0 0.75rem;
+	font-size: 14px;
+}
+
+.r404-rule-form {
+	display: grid;
+	grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) auto;
+	gap: 0.75rem 1rem;
+	align-items: start;
+}
+
+.r404-field label {
+	display: block;
+	margin-bottom: 0.25rem;
+	font-weight: 600;
+}
+
+.r404-field input[type="text"],
+.r404-field select {
+	width: 100%;
+	max-width: none;
+}
+
+.r404-field .description {
+	margin-top: 0.25rem;
+}
+
+.r404-field--submit {
+	padding-top: 1.6rem;
+	white-space: nowrap;
+}
+
+.r404-csv__grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1rem 2rem;
+}
+
+.r404-csv__grid p {
+	margin-top: 0;
+}
+
+.r404-csv__import label {
+	display: block;
+	margin-bottom: 0.25rem;
+	font-weight: 600;
+}
+
+.r404-csv__import input[type="file"] {
+	max-width: 100%;
+}
+
+.r404-notice-list {
+	margin: 0 0 0.5rem 1.25rem;
+	list-style: disc;
+}
+
+/* Foco visible con el acento en los elementos propios. */
+.r404 .r404-referrer:focus-visible,
+.r404 .nav-tab:focus-visible {
+	outline: 2px solid var(--r404-accent);
+	outline-offset: 2px;
+	box-shadow: none;
+}
+
+/* Tableta: el formulario pasa a dos filas y se oculta la fecha de creación
+   para dejar sitio a las URL. */
+@media screen and (max-width: 1100px) {
+	.r404-rule-form {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	}
+
+	.r404-field--type {
+		max-width: 16rem;
+	}
+
+	.r404-field--submit {
+		padding-top: 1.6rem;
+	}
+
+	.r404 .wp-list-table .column-created {
+		display: none;
+	}
+
+	.r404 .wp-list-table .column-last_seen,
+	.r404 .wp-list-table .column-last_hit {
+		width: 8.5em;
+	}
+}
+
+/* Móvil (mismo punto de corte que el escritorio de WordPress). */
+@media screen and (max-width: 782px) {
+	/* WordPress pliega en móvil todas las columnas salvo la principal; el
+	   formulario de «Redirigir 301» se deja siempre a la vista. */
+	.r404 .wp-list-table.widefat tbody tr:not(.inline-edit-row):not(.no-items) td.column-redirect {
+		display: block;
+	}
+
+	.r404-wordmark {
+		font-size: 20px;
+	}
+
+	.r404-rule-form,
+	.r404-csv__grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.r404-field--submit {
+		padding-top: 0;
+	}
+
+	.r404-card {
+		padding: 0.75rem 1rem 1rem;
+	}
+
+	.r404 .wp-list-table .column-redirect,
+	.r404 .wp-list-table .column-referrer {
+		width: auto;
+	}
+
+	.r404-inline {
+		flex-wrap: wrap;
+	}
+
+	.r404 .r404-inline__input {
+		flex-basis: 100%;
+	}
+
+	.r404 .nav-tab {
+		margin-bottom: 0.25rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.r404 * {
+		transition: none !important;
+	}
+}

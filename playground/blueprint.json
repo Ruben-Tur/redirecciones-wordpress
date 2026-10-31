@@ -1,0 +1,22 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"landingPage": "/wp-admin/tools.php?page=redirecciones-404",
+	"preferredVersions": {
+		"php": "8.1",
+		"wp": "latest"
+	},
+	"steps": [
+		{
+			"step": "setSiteLanguage",
+			"language": "es_ES"
+		},
+		{
+			"step": "activatePlugin",
+			"pluginPath": "redirecciones-404/redirecciones-404.php"
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php\nrequire '/wordpress/wp-load.php';\nupdate_option( 'blogname', 'Muebles Olivar' );\nupdate_option( 'blogdescription', 'Muebles de madera hechos en Valencia' );\nglobal $wp_rewrite;\n$wp_rewrite->set_permalink_structure( '/%postname%/' );\nflush_rewrite_rules();\n$contenido = array(\n\tarray( 'page', 'Contacto', 'contacto', 'Escríbenos a hola@mueblesolivar.es o llámanos al 961 23 45 67.' ),\n\tarray( 'page', 'Tienda', 'tienda', 'Todos nuestros muebles, hechos a mano en el taller.' ),\n\tarray( 'page', 'Noticias', 'noticias', 'Novedades del taller.' ),\n\tarray( 'post', 'Silla de roble macizo', 'silla-de-roble', 'Silla de roble con asiento de enea. 189 €.' ),\n\tarray( 'post', 'Oferta de verano 2026', 'oferta-verano-2026', 'Un 15 % de descuento en mesas de comedor hasta el 31 de agosto.' ),\n\tarray( 'post', 'Diseño de cocinas a medida', 'diseno-cocinas', 'Te ayudamos a diseñar tu cocina.' ),\n);\nforeach ( $contenido as list( $tipo, $titulo, $slug, $texto ) ) {\n\tif ( ! get_page_by_path( $slug, OBJECT, $tipo ) ) {\n\t\twp_insert_post( array( 'post_type' => $tipo, 'post_title' => $titulo, 'post_name' => $slug, 'post_content' => $texto, 'post_status' => 'publish' ) );\n\t}\n}\n"
+		}
+	]
+}

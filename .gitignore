@@ -1,0 +1,19 @@
+# Dependencias y herramientas locales
+/vendor/
+/node_modules/
+
+# Datos y configuración local
+.env
+.env.*
+*.log
+*.sqlite
+/wordpress/
+
+# Exportaciones de prueba
+*.csv
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
