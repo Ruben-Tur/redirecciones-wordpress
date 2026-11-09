@@ -52,8 +52,30 @@ final class Installer {
 	public static function maybe_upgrade(): void {
 		if ( self::DB_VERSION !== get_option( self::DB_VERSION_OPTION ) ) {
 			self::install();
-			Cleanup::schedule();
 		}
+
+		// Barato (la lista de WP-Cron ya está en memoria) y recupera la
+		// limpieza si el evento se ha perdido; sin ella el registro solo se
+		// recortaría al llegar URL nuevas.
+		Cleanup::schedule();
+	}
+
+	/**
+	 * Tablas propias de un sitio de la red, para que WordPress las borre
+	 * junto con las suyas al eliminar ese sitio (filtro `wpmu_drop_tables`).
+	 *
+	 * @param string[] $tables  Tablas que WordPress va a borrar.
+	 * @param int      $site_id Sitio que se elimina.
+	 * @return string[]
+	 */
+	public static function drop_site_tables( array $tables, int $site_id ): array {
+		global $wpdb;
+
+		$prefix   = $wpdb->get_blog_prefix( $site_id );
+		$tables[] = $prefix . 'r404_log';
+		$tables[] = $prefix . 'r404_redirects';
+
+		return $tables;
 	}
 
 	/**
@@ -124,5 +146,17 @@ CREATE TABLE {$redirects_table} (
 		delete_option( Redirect_Repository::CACHE_OPTION );
 		delete_transient( 'redirecciones_404_rate' );
 		delete_metadata( 'user', 0, 'redirecciones_404_per_page', '', true );
+
+		// Avisos pendientes del panel (uno por usuario). Sin caché de objetos
+		// persistente viven en wp_options hasta que WordPress los purga.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Desinstalación: no hay API para borrar transitorios por prefijo.
+		$wpdb->query(
+			$wpdb->prepare(
+				'DELETE FROM %i WHERE option_name LIKE %s OR option_name LIKE %s',
+				$wpdb->options,
+				$wpdb->esc_like( '_transient_redirecciones_404_notice_' ) . '%',
+				$wpdb->esc_like( '_transient_timeout_redirecciones_404_notice_' ) . '%'
+			)
+		);
 	}
 }

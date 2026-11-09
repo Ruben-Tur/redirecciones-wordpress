@@ -180,21 +180,33 @@ final class Log_Repository {
 	public function delete_matching_wildcard( string $source ): int {
 		global $wpdb;
 
-		$prefix = strstr( $source, '*', true );
-		$urls   = $wpdb->get_results(
-			$wpdb->prepare( 'SELECT id, url FROM %i WHERE url LIKE %s LIMIT 5000', self::table(), $wpdb->esc_like( rtrim( (string) $prefix, '/' ) ) . '%' ),
-			ARRAY_A
-		);
-		$regex  = Rule_Matcher::wildcard_regex( $source );
-		$ids    = array();
+		$like    = $wpdb->esc_like( rtrim( (string) strstr( $source, '*', true ), '/' ) ) . '%';
+		$regex   = Rule_Matcher::wildcard_regex( $source );
+		$ids     = array();
+		$last_id = 0;
 
-		foreach ( $urls as $row ) {
-			if ( preg_match( $regex, (string) $row['url'] ) ) {
-				$ids[] = (int) $row['id'];
+		// Por bloques: el registro admite hasta 50 000 URL y un tope fijo
+		// dejaría pendientes 404 que la regla ya resuelve.
+		do {
+			$rows = (array) $wpdb->get_results(
+				$wpdb->prepare( 'SELECT id, url FROM %i WHERE id > %d AND url LIKE %s ORDER BY id ASC LIMIT 1000', self::table(), $last_id, $like ),
+				ARRAY_A
+			);
+
+			foreach ( $rows as $row ) {
+				$last_id = (int) $row['id'];
+				if ( preg_match( $regex, (string) $row['url'] ) ) {
+					$ids[] = $last_id;
+				}
 			}
+		} while ( 1000 === count( $rows ) );
+
+		$deleted = 0;
+		foreach ( array_chunk( $ids, 500 ) as $chunk ) {
+			$deleted += $this->delete( $chunk );
 		}
 
-		return $this->delete( $ids );
+		return $deleted;
 	}
 
 	/**

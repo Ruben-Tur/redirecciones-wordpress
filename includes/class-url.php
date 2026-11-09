@@ -233,11 +233,17 @@ final class Url {
 			$location = $target;
 		}
 
-		if ( '' !== $query && ! str_contains( $location, '?' ) ) {
-			$location .= '?' . $query;
+		if ( '' === $query || str_contains( $location, '?' ) ) {
+			return $location;
 		}
 
-		return $location;
+		// La consulta va antes del fragmento: `/pagina#seccion` → `/pagina?utm=x#seccion`.
+		$hash = strpos( $location, '#' );
+		if ( false === $hash ) {
+			return $location . '?' . $query;
+		}
+
+		return substr( $location, 0, $hash ) . '?' . $query . substr( $location, $hash );
 	}
 
 	/**

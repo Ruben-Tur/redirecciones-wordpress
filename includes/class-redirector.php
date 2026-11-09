@@ -23,6 +23,11 @@ final class Redirector {
 	private const REDIRECT_BY = 'Redirecciones 404';
 
 	/**
+	 * Archivos de WordPress cuyas peticiones nunca se redirigen.
+	 */
+	private const SYSTEM_SCRIPTS = array( 'wp-login.php', 'wp-signup.php', 'wp-activate.php', 'wp-comments-post.php', 'wp-trackback.php', 'xmlrpc.php', 'wp-cron.php' );
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Redirect_Repository $redirects Repositorio de redirecciones.
@@ -46,20 +51,28 @@ final class Redirector {
 			return;
 		}
 
-		$this->redirects->increment_hits( $location['id'] );
-
+		$allow_host = null;
 		if ( $location['external'] ) {
-			// Permiso explícito solo para el dominio que el administrador escribió en esta regla.
-			$host = (string) wp_parse_url( $location['url'], PHP_URL_HOST );
-			add_filter( 'allowed_redirect_hosts', static fn( array $hosts ): array => array_merge( $hosts, array( $host ) ) );
+			// Permiso explícito solo para el dominio de esta regla (resolve() ya
+			// ha comprobado que coincide con el de la URL final).
+			$host       = (string) wp_parse_url( $location['url'], PHP_URL_HOST );
+			$allow_host = static fn( array $hosts ): array => array_merge( $hosts, array( $host ) );
+			add_filter( 'allowed_redirect_hosts', $allow_host );
 		}
 
-		if ( '' === wp_validate_redirect( $location['url'], '' ) ) {
-			return;
+		// La visita solo se cuenta si la redirección se sirve de verdad.
+		if ( '' !== wp_validate_redirect( $location['url'], '' ) ) {
+			$this->redirects->increment_hits( $location['id'] );
+
+			if ( wp_safe_redirect( $location['url'], $location['type'], self::REDIRECT_BY ) ) {
+				exit;
+			}
 		}
 
-		if ( wp_safe_redirect( $location['url'], $location['type'], self::REDIRECT_BY ) ) {
-			exit;
+		// Si no se ha redirigido, el dominio externo no queda permitido para
+		// otras redirecciones de esta petición.
+		if ( null !== $allow_host ) {
+			remove_filter( 'allowed_redirect_hosts', $allow_host );
 		}
 	}
 
@@ -69,7 +82,16 @@ final class Redirector {
 	 * @return array{id: int, url: string, type: int, external: bool}|null
 	 */
 	public function resolve_current_request(): ?array {
+		global $pagenow;
+
 		if ( is_admin() || wp_doing_ajax() || wp_doing_cron() || ( defined( 'WP_CLI' ) && WP_CLI ) || ! Installer::is_installed() ) {
+			return null;
+		}
+
+		// Con WordPress en su propia carpeta (p. ej. /wp/wp-login.php) estas
+		// rutas no empiezan como espera Url::is_system_path(): se descartan
+		// por el archivo que atiende la petición.
+		if ( in_array( $pagenow ?? '', self::SYSTEM_SCRIPTS, true ) ) {
 			return null;
 		}
 
@@ -117,11 +139,30 @@ final class Redirector {
 			return null;
 		}
 
+		// Un destino externo solo puede llevar al dominio escrito en la regla:
+		// un comodín ($1) nunca debe poder cambiarlo (`https://web.es$1` con
+		// `@otro.com` saldría hacia otro.com).
+		if ( null === $internal && ! self::same_host( $match['target'], (string) $match['rule']['target'] ) ) {
+			return null;
+		}
+
 		return array(
 			'id'       => (int) $match['rule']['id'],
 			'url'      => Url::to_location( $match['target'], $home_url, $keep_query ? Url::query( $uri ) : '' ),
 			'type'     => (int) $match['rule']['type'],
 			'external' => null === $internal,
 		);
+	}
+
+	/**
+	 * Indica si el destino final conserva el dominio del destino de la regla.
+	 *
+	 * @param string $resolved Destino con los comodines ya sustituidos.
+	 * @param string $original Destino tal como está guardado en la regla.
+	 */
+	private static function same_host( string $resolved, string $original ): bool {
+		$host = strtolower( (string) wp_parse_url( $original, PHP_URL_HOST ) );
+
+		return '' !== $host && ! str_contains( $host, '$' ) && strtolower( (string) wp_parse_url( $resolved, PHP_URL_HOST ) ) === $host;
 	}
 }

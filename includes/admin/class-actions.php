@@ -114,6 +114,15 @@ final class Actions {
 			$this->back( '404', array(), true );
 		}
 
+		// Cualquiera puede pedir `/a%2A` y dejar `/a*` en el registro. En un
+		// origen el * es un comodín, así que con un clic se crearía una regla
+		// que captura media web (`/about`, `/archivo`…).
+		if ( str_contains( (string) $entry['url'], '*' ) ) {
+			/* translators: %s: URL. */
+			Notices::add( 'error', sprintf( __( 'No se ha creado la redirección de %s: contiene *, que en el origen funciona como comodín. Si es lo que quieres, créala desde la pestaña Redirecciones.', 'redirecciones-404' ), $entry['url'] ) );
+			$this->back( '404', array(), true );
+		}
+
 		// El destino se valida en Redirect_Service (sanitize_text_field() rompería los %xx).
 		$target = isset( $_POST['target'] ) ? (string) wp_unslash( $_POST['target'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		$result = $this->service->save(
@@ -304,7 +313,7 @@ final class Actions {
 
 		if ( $warnings > 0 ) {
 			/* translators: %d: número de reglas. */
-			Notices::add( 'warning', sprintf( _n( '%d regla importada forma una cadena de redirecciones. Revisa que apunte al destino final.', '%d reglas importadas forman cadenas de redirecciones. Revisa que apunten al destino final.', $warnings, 'redirecciones-404' ), $warnings ) );
+			Notices::add( 'warning', sprintf( _n( 'Hay %d aviso en las reglas importadas (cadenas de redirecciones o parámetros del origen que se ignoran). Revisa que apunten al destino final.', 'Hay %d avisos en las reglas importadas (cadenas de redirecciones o parámetros del origen que se ignoran). Revisa que apunten al destino final.', $warnings, 'redirecciones-404' ), $warnings ) );
 		}
 
 		$this->back( 'redirecciones' );

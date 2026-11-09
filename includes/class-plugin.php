@@ -38,6 +38,9 @@ final class Plugin {
 		( new Logger( $log ) )->register();
 		( new Cleanup( $log ) )->register();
 
+		// Multisitio: al eliminar un sitio de la red, sus tablas se van con él.
+		add_filter( 'wpmu_drop_tables', array( Installer::class, 'drop_site_tables' ), 10, 2 );
+
 		if ( is_admin() ) {
 			add_action( 'admin_init', array( Installer::class, 'maybe_upgrade' ) );
 

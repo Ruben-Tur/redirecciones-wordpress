@@ -61,8 +61,8 @@ final class Suggester {
 
 		$suggestion = null;
 		if ( null !== $post ) {
-			$url = wp_make_link_relative( (string) get_permalink( $post ) );
-			if ( '' !== $url && Url::normalize_path( $url, Url::home_path() ) !== $path ) {
+			$url = self::relative_to_home( (string) get_permalink( $post ) );
+			if ( '' !== $url && Url::normalize_path( $url ) !== $path ) {
 				$suggestion = array(
 					'url'   => $url,
 					'title' => get_the_title( $post ),
@@ -72,6 +72,25 @@ final class Suggester {
 
 		$this->cache[ $path ] = $suggestion;
 		return $suggestion;
+	}
+
+	/**
+	 * Ruta de un enlace relativa a la portada, que es como se guardan los
+	 * destinos internos (Url::to_location() les antepone home_url()).
+	 *
+	 * wp_make_link_relative() dejaría la subcarpeta de la instalación y, en
+	 * una web en /tienda, el destino acabaría en /tienda/tienda/….
+	 *
+	 * @param string $permalink Enlace permanente absoluto.
+	 */
+	private static function relative_to_home( string $permalink ): string {
+		$home = untrailingslashit( home_url() );
+
+		if ( 0 === strncasecmp( $permalink, $home, strlen( $home ) ) ) {
+			return '/' . ltrim( substr( $permalink, strlen( $home ) ), '/' );
+		}
+
+		return wp_make_link_relative( $permalink );
 	}
 
 	/**

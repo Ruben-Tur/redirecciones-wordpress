@@ -92,13 +92,18 @@ final class Rule_Matcher {
 	/**
 	 * Sustituye `$1`…`$9` del destino por los fragmentos capturados.
 	 *
+	 * Las capturas salen de la ruta ya decodificada, así que se vuelven a
+	 * codificar (salvo `/` y `%`): un `%20`, `%3F` o `%23` de la URL pedida no
+	 * debe convertirse en un espacio perdido ni en una consulta o un fragmento
+	 * nuevos en el destino.
+	 *
 	 * @param string            $target   Destino de la regla.
 	 * @param array<int,string> $captures Capturas de preg_match (índice 0 = coincidencia completa).
 	 */
 	public static function apply_captures( string $target, array $captures ): string {
 		return (string) preg_replace_callback(
 			'/\$(\d)/',
-			static fn( array $m ): string => (string) ( $captures[ (int) $m[1] ] ?? '' ),
+			static fn( array $m ): string => str_replace( array( '%2F', '%25' ), array( '/', '%' ), rawurlencode( (string) ( $captures[ (int) $m[1] ] ?? '' ) ) ),
 			$target
 		);
 	}

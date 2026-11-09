@@ -95,6 +95,9 @@ $t::same( array( Log_Repository::table(), Redirect_Repository::table() ), $table
 $t::same( Installer::DB_VERSION, get_option( Installer::DB_VERSION_OPTION ), 'guarda la versión del esquema' );
 $t::true( false !== wp_next_scheduled( Cleanup::HOOK ), 'programa la limpieza diaria en WP-Cron' );
 $t::same( 'daily', wp_get_schedule( Cleanup::HOOK ), 'la limpieza es diaria' );
+Cleanup::unschedule();
+Installer::maybe_upgrade();
+$t::true( false !== wp_next_scheduled( Cleanup::HOOK ), 'maybe_upgrade() recupera la limpieza si el evento se ha perdido' );
 
 // Normalización de URL --------------------------------------------------------
 
@@ -172,6 +175,7 @@ $t::same( '/nueva', Url::internal_path( 'https://miweb.es/sub/nueva', 'https://m
 $t::same( 'https://miweb.es/nueva?utm=x', Url::to_location( '/nueva', $home, 'utm=x' ), 'conserva la consulta' );
 $t::same( 'https://miweb.es/nueva?a=1', Url::to_location( '/nueva?a=1', $home, 'utm=x' ), 'no pisa la consulta del destino' );
 $t::same( 'https://miweb.es/evil.com', Url::to_location( '//evil.com', $home ), 'una captura con // no sale del dominio' );
+$t::same( 'https://miweb.es/nueva?utm=x#seccion', Url::to_location( '/nueva#seccion', $home, 'utm=x' ), 'la consulta va antes del fragmento' );
 
 // Comodines -----------------------------------------------------------------
 
@@ -197,6 +201,8 @@ $t::same( null, $match( '/blogger' ), 'no confunde /blogger con /blog/*' );
 $t::same( null, $match( '/otra' ), 'sin coincidencia → null' );
 $t::same( '#^/a\.b\?(.*)$#u', Rule_Matcher::wildcard_regex( '/a.b?*' ), 'escapa los caracteres especiales del origen' );
 $t::same( '/x//y/', Rule_Matcher::apply_captures( '/x/$1/$2/$3', array( '', '', 'y' ) ), 'marcadores sin captura quedan vacíos' );
+$t::same( '/n/a%20b%3Fc%23d/e', Rule_Matcher::apply_captures( '/n/$1', array( '', 'a b?c#d/e' ) ), 'las capturas se recodifican (sin perder espacios ni crear ? o #) y conservan las barras' );
+$t::same( '/n/dise%C3%B1o', Rule_Matcher::apply_captures( '/n/$1', array( '', 'diseño' ) ), 'captura con caracteres no ASCII' );
 
 $t::section( 'Bucles y cadenas' );
 $loop = new Rule_Matcher(
@@ -302,6 +308,14 @@ $t::same( 302, (int) $redirects->find( (int) $chained['id'] )['type'], 'la edici
 $external = $service->save( array( 'source' => '/tienda-vieja', 'target' => 'https://tienda.example.com/' ) );
 $t::true( is_array( $external ), 'admite destinos externos escritos por el administrador' );
 
+$t::same( 'r404_target_host_placeholder', $service->save( array( 'source' => '/salir/*', 'target' => 'https://$1/' ) )->get_error_code(), 'rechaza un comodín en el dominio externo (https://$1/)' );
+$t::same( 'r404_target_host_placeholder', $service->save( array( 'source' => '/salir/*', 'target' => 'https://tienda.example.com$1' ) )->get_error_code(), 'rechaza un comodín pegado al dominio (https://web.es$1)' );
+$docs = $service->save( array( 'source' => '/docs/*', 'target' => 'https://docs.example.com/$1' ) );
+$t::true( is_array( $docs ), 'admite comodines en la ruta de un destino externo' );
+
+$with_query = $service->save( array( 'source' => '/ficha?id=5', 'target' => '/fichas/' ) );
+$t::true( is_array( $with_query ) && '/ficha' === $with_query['source'] && 1 === count( $with_query['warnings'] ), 'avisa de que se ignoran los parámetros del origen' );
+
 // Redirector -------------------------------------------------------------------
 
 $t::section( 'Redirector::resolve' );
@@ -316,6 +330,51 @@ $t::same( 'https://tienda.example.com/', $redirector->resolve( '/tienda-vieja', 
 $t::true( $redirector->resolve( '/tienda-vieja', $home, true )['external'] ?? false, 'marca el destino externo' );
 $t::same( null, $redirector->resolve( '/no-existe-regla', $home, true ), 'sin regla → null' );
 $t::same( null, $redirector->resolve( '/wp-admin/', $home, true ), 'nunca resuelve el escritorio' );
+$t::same( 'https://docs.example.com/guia/inicio', $redirector->resolve( '/docs/guia/inicio', $home, false )['url'] ?? null, 'comodín hacia un destino externo' );
+
+// Reglas antiguas o metidas a mano en la tabla, sin pasar por la validación.
+$legacy_host = $redirects->create( array( 'source' => '/fuera/*', 'target' => 'https://$1/', 'type' => 301, 'is_wildcard' => true ) );
+$legacy_glue = $redirects->create( array( 'source' => '/pegado/*', 'target' => 'https://tienda.example.com$1', 'type' => 301, 'is_wildcard' => true ) );
+$t::same( null, $redirector->resolve( '/fuera/evil.example', $home, true ), 'un comodín nunca decide el dominio externo (redirección abierta)' );
+$t::same( null, $redirector->resolve( '/pegado/@evil.example', $home, true ), 'una captura con @ no cambia el dominio externo' );
+$redirects->delete( array( $legacy_host, $legacy_glue ) );
+
+// Petición completa: con el archivo de acceso de WordPress no se redirige
+// (WordPress instalado en su propia carpeta: /wp/wp-login.php).
+$wp_in_dir = $service->save( array( 'source' => '/wp/*', 'target' => '/otra/$1' ) );
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$_SERVER['REQUEST_URI']    = '/wp/wp-login.php';
+$t::true( null !== $redirector->resolve_current_request(), 'resolve_current_request() resuelve la ruta en una petición normal' );
+$saved_pagenow = $GLOBALS['pagenow'] ?? null;
+$GLOBALS['pagenow'] = 'wp-login.php';
+$t::same( null, $redirector->resolve_current_request(), 'nunca redirige wp-login.php aunque una regla coincida' );
+$GLOBALS['pagenow'] = $saved_pagenow;
+$redirects->delete( array( (int) $wp_in_dir['id'] ) );
+
+// maybe_redirect() de principio a fin: wp_redirect se corta con una excepción.
+$stop_redirect = static function ( string $location ): string {
+	throw new RuntimeException( $location );
+};
+add_filter( 'wp_redirect', $stop_redirect );
+$hits_before            = (int) $redirects->find( (int) $docs['id'] )['hits'];
+$_SERVER['REQUEST_URI'] = '/docs/guia';
+try {
+	$redirector->maybe_redirect();
+	$sent = null;
+} catch ( RuntimeException $e ) {
+	$sent = $e->getMessage();
+}
+$t::same( 'https://docs.example.com/guia', $sent, 'maybe_redirect() envía al dominio externo de la regla' );
+$t::same( $hits_before + 1, (int) $redirects->find( (int) $docs['id'] )['hits'], 'cuenta la visita al servir la redirección' );
+remove_filter( 'wp_redirect', $stop_redirect );
+remove_all_filters( 'allowed_redirect_hosts' );
+
+// Si otro plugin anula la redirección, el dominio externo no queda permitido.
+add_filter( 'wp_redirect', '__return_false' );
+$redirector->maybe_redirect();
+remove_filter( 'wp_redirect', '__return_false' );
+$t::true( ! in_array( 'docs.example.com', apply_filters( 'allowed_redirect_hosts', array(), '' ), true ), 'sin redirección, el dominio externo no queda permitido en la petición' );
+$_SERVER['REQUEST_URI'] = '/';
 
 // Hits de la redirección.
 $redirects->increment_hits( (int) $saved['id'] );
@@ -391,6 +450,16 @@ for ( $i = 1; $i <= 8; $i++ ) {
 $t::same( 3, $log->enforce_cap( 5 ), 'borra las 3 más antiguas al superar el máximo' );
 $t::same( array( '/tope-4', '/tope-5', '/tope-6', '/tope-7', '/tope-8' ), $wpdb->get_col( $wpdb->prepare( 'SELECT url FROM %i ORDER BY url ASC', Log_Repository::table() ) ), 'quedan las más recientes' );
 
+$t::section( 'Comodín sobre un registro grande' );
+$log->delete_all();
+$now = current_time( 'mysql', true );
+for ( $i = 1; $i <= 1100; $i++ ) {
+	$log->insert( "/lote/{$i}", '', $now );
+}
+$log->insert( '/lotes-no', '', $now );
+$t::same( 1100, $log->delete_matching_wildcard( '/lote/*' ), 'borra todos los 404 que cubre el comodín, también más allá del primer bloque' );
+$t::same( 1, $log->count(), 'conserva los que no encajan' );
+
 $t::section( 'Limpieza programada (WP-Cron)' );
 $log->delete_all();
 $log->insert( '/vieja', '', gmdate( 'Y-m-d H:i:s', time() - 40 * DAY_IN_SECONDS ) );
@@ -463,10 +532,55 @@ $t::same( '/oferta-verano-2026/', $suggester->suggest( '/blog/oferta-verano-2024
 $t::same( 'Silla de roble macizo', $suggester->suggest( '/producto/silla-roble' )['title'] ?? null, 'devuelve el título para mostrarlo' );
 $t::same( null, $suggester->suggest( '/servicios/reformas' ), 'sin parecido → sin sugerencia' );
 $t::same( null, $suggester->suggest( '/silla-de-roble' ), 'no sugiere la propia URL' );
+$in_subdir = static fn( $value ): string => untrailingslashit( (string) $value ) . '/tienda';
+add_filter( 'option_home', $in_subdir );
+$t::same( '/silla-de-roble/', ( new RubenTur\Redirecciones404\Suggester() )->suggest( '/producto/silla-roble' )['url'] ?? null, 'web en subcarpeta: la sugerencia no repite la subcarpeta' );
+remove_filter( 'option_home', $in_subdir );
+
+// Botón «Redirigir 301» -------------------------------------------------------
+
+$t::section( 'Acción «Redirigir 301»' );
+$admins = get_users(
+	array(
+		'role'   => 'administrator',
+		'number' => 1,
+		'fields' => 'ID',
+	)
+);
+wp_set_current_user( (int) $admins[0] );
+$actions        = new RubenTur\Redirecciones404\Admin\Actions( $log, $redirects, $service );
+$click_redirect = static function ( int $log_id, string $target ) use ( $actions, $stop_redirect ): void {
+	$_POST    = array(
+		'log_id' => (string) $log_id,
+		'target' => $target,
+	);
+	$_REQUEST = $_POST + array( '_wpnonce' => wp_create_nonce( 'redirecciones_404_redirect_log_' . $log_id ) );
+	add_filter( 'wp_redirect', $stop_redirect );
+	try {
+		$actions->redirect_log();
+	} catch ( RuntimeException $e ) {
+		unset( $e ); // Fin de la acción: vuelve al panel.
+	}
+	remove_filter( 'wp_redirect', $stop_redirect );
+};
+$log->delete_all();
+$log->insert( '/a*', '', current_time( 'mysql', true ) );
+$log->insert( '/catalogo-viejo', '', current_time( 'mysql', true ) );
+$star_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM %i WHERE url = %s', Log_Repository::table(), '/a*' ) );
+$ok_id   = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM %i WHERE url = %s', Log_Repository::table(), '/catalogo-viejo' ) );
+$click_redirect( $star_id, '/destino/' );
+$t::true( null === $redirects->find_by_source( '/a*' ) && null !== $log->find( $star_id ), 'un 404 con * no se convierte en comodín con un clic' );
+$click_redirect( $ok_id, '/catalogo/' );
+$t::true( null !== $redirects->find_by_source( '/catalogo-viejo' ) && null === $log->find( $ok_id ), 'un 404 normal se redirige y sale del registro' );
+$_POST    = array();
+$_REQUEST = array();
+RubenTur\Redirecciones404\Admin\Notices::pull();
 
 // Desactivación y desinstalación ------------------------------------------------
 
 $t::section( 'Desactivación y desinstalación' );
+$t::true( in_array( Log_Repository::table(), apply_filters( 'wpmu_drop_tables', array(), get_current_blog_id() ), true ), 'multisitio: las tablas se borran al eliminar el sitio' );
+set_transient( 'redirecciones_404_notice_999', array( 'items' => array() ), MINUTE_IN_SECONDS );
 deactivate_plugins( $plugin );
 $t::same( false, wp_next_scheduled( Cleanup::HOOK ), 'desactivar quita la tarea programada' );
 $t::true( $redirects->count() > 0, 'desactivar conserva los datos' );
@@ -475,6 +589,7 @@ define( 'WP_UNINSTALL_PLUGIN', $plugin );
 require WP_PLUGIN_DIR . '/redirecciones-404/uninstall.php';
 $t::same( array( '', '' ), $tables(), 'uninstall.php elimina las tablas' );
 $t::same( array( false, false, false ), array( get_option( Settings::OPTION ), get_option( Installer::DB_VERSION_OPTION ), get_option( Redirect_Repository::CACHE_OPTION ) ), 'uninstall.php elimina las opciones' );
+$t::same( 0, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE option_name LIKE %s', $wpdb->options, '%redirecciones_404_notice_%' ) ), 'uninstall.php elimina los avisos pendientes del panel' );
 
 // Resumen ----------------------------------------------------------------------
 

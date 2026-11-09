@@ -90,6 +90,16 @@ final class Redirect_Service {
 			);
 		}
 
+		// En un destino externo los comodines solo pueden ir en la ruta o la
+		// consulta: en el dominio permitirían enviar al visitante a cualquier web.
+		if ( ! str_starts_with( $target, '/' ) ) {
+			$after_scheme = substr( $target, (int) strpos( $target, '://' ) + 3 );
+			$authority    = substr( $after_scheme, 0, strcspn( $after_scheme, '/?#' ) );
+			if ( preg_match( '/\$\d/', $authority ) ) {
+				return new WP_Error( 'r404_target_host_placeholder', __( 'En un destino externo los comodines ($1, $2…) solo pueden ir después del dominio, por ejemplo https://otra-web.com/$1.', 'redirecciones-404' ) );
+			}
+		}
+
 		if ( ! in_array( $type, self::TYPES, true ) ) {
 			return new WP_Error( 'r404_type', __( 'El tipo debe ser 301 (permanente) o 302 (temporal).', 'redirecciones-404' ) );
 		}
@@ -114,6 +124,18 @@ final class Redirect_Service {
 		$chain = $this->check_chain( $rule );
 		if ( $chain instanceof WP_Error ) {
 			return $chain;
+		}
+
+		// El origen se compara sin consulta: `/pagina?id=5` se guarda como
+		// `/pagina` y redirige esa ruta con cualquier consulta. Mejor avisar.
+		$raw_query = Url::query( $raw_source );
+		if ( '' !== $raw_query ) {
+			$chain[] = sprintf(
+				/* translators: 1: consulta descartada, 2: origen guardado. */
+				__( 'Los parámetros del origen (?%1$s) se ignoran: la regla se aplica a %2$s con cualquier consulta.', 'redirecciones-404' ),
+				$raw_query,
+				$source
+			);
 		}
 
 		$rule['warnings'] = $chain;
